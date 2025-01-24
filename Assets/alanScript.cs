@@ -109,22 +109,37 @@ public class alanScript : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
+        // Ajouter la position de la tête (3 composantes pour le vecteur)
         sensor.AddObservation(head.transform.position);
         Debug.Log($"Position de la tête: {head.transform.position}");
 
-        // Angles des articulations pour la jambe gauche
+        // Ajouter les angles de la tête sur les trois axes
+        Vector3 headAngles = head.transform.eulerAngles;
+        sensor.AddObservation(headAngles.x);
+        sensor.AddObservation(headAngles.y);
+        sensor.AddObservation(headAngles.z);
+        Debug.Log($"Angles de la tête: x {headAngles.x}, y {headAngles.y}, z {headAngles.z}");
+
+        // Ajouter les angles des articulations pour la jambe gauche
         sensor.AddObservation(leftHeelJoint.angle);
         sensor.AddObservation(leftTibiaJoint.angle);
         sensor.AddObservation(leftFeetJoint.angle);
         Debug.Log($"Angles de la jambe gauche: Heel {leftHeelJoint.angle}, Tibia {leftTibiaJoint.angle}, Feet {leftFeetJoint.angle}");
 
-        // Angles des articulations pour la jambe droite
+        // Ajouter les angles des articulations pour la jambe droite
         sensor.AddObservation(rightHeelJoint.angle);
         sensor.AddObservation(rightTibiaJoint.angle);
         sensor.AddObservation(rightFeetJoint.angle);
         Debug.Log($"Angles de la jambe droite: Heel {rightHeelJoint.angle}, Tibia {rightTibiaJoint.angle}, Feet {rightFeetJoint.angle}");
 
+        // Ajouter des booléens pour indiquer si les pieds touchent le sol
+        bool isLeftFootGrounded = leftFeet.GetComponent<Collider>().isTrigger == false;
+        bool isRightFootGrounded = rightFeet.GetComponent<Collider>().isTrigger == false;
+        sensor.AddObservation(isLeftFootGrounded);
+        sensor.AddObservation(isRightFootGrounded);
+        Debug.Log($"Pieds au sol: Gauche {isLeftFootGrounded}, Droite {isRightFootGrounded}");
     }
+
 
     public override void OnActionReceived(ActionBuffers actionBuffers){
         // Appliquer les actions de l'IA aux joints
