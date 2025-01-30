@@ -8,6 +8,7 @@ using System;
 
 public class alanScript : Agent
 {
+    public int speed = 20;
     public GameObject head;
     public GameObject leftHeel;
     public GameObject leftTibia;
@@ -168,9 +169,13 @@ public class alanScript : Agent
 
     void Update()
     {
+        transform.Translate(Vector3.right*Time.deltaTime * speed);
         // Demander des décisions et actions à chaque frame
         RequestDecision();
         RequestAction();
     }
 
 }
+
+
+
