@@ -1,14 +1,12 @@
-using System.Collections;
-using System.Collections.Generic;
+
 using UnityEngine;
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
 using System;
 
-public class alanScript : Agent
+public class AlanScript : Agent
 {
-    public int speed = 20;
     public GameObject head;
     public GameObject leftHeel;
     public GameObject leftTibia;
@@ -44,9 +42,16 @@ public class alanScript : Agent
     private Vector3 rightFeetInitialPosition;
     private Quaternion rightFeetInitialRotation;
 
+    private CollisionManager leftFootCollisionManager;
+    private CollisionManager rightFootCollisionManager;
+
     // Start is called before the first frame update
     void Start()
     {
+
+        leftFootCollisionManager = leftFeet.GetComponent<CollisionManager>();
+        rightFootCollisionManager = rightFeet.GetComponent<CollisionManager>();
+
         leftHeelJoint = leftHeel.GetComponent<HingeJoint>();
         leftTibiaJoint = leftTibia.GetComponent<HingeJoint>();
         leftFeetJoint = leftFeet.GetComponent<HingeJoint>();
@@ -112,33 +117,36 @@ public class alanScript : Agent
     {
         // Ajouter la position de la tête (3 composantes pour le vecteur)
         sensor.AddObservation(head.transform.position);
-        Debug.Log($"Position de la tête: {head.transform.position}");
 
         // Ajouter les angles de la tête sur les trois axes
         Vector3 headAngles = head.transform.eulerAngles;
         sensor.AddObservation(headAngles.x);
         sensor.AddObservation(headAngles.y);
         sensor.AddObservation(headAngles.z);
-        Debug.Log($"Angles de la tête: x {headAngles.x}, y {headAngles.y}, z {headAngles.z}");
+
+        // Récupérer l'orientation locale des articulations de la hanche
+        Vector3 leftHipJointAngles = leftHeelJoint.transform.localRotation.eulerAngles;
+        Vector3 rightHipJointAngles = rightHeelJoint.transform.localRotation.eulerAngles;
+
+        // Ajouter les angles X et Z des hanches (éviter Y si ce n'est pas utile)
+        sensor.AddObservation(leftHipJointAngles.x);
+        sensor.AddObservation(leftHipJointAngles.z);
+
+        sensor.AddObservation(rightHipJointAngles.x);
+        sensor.AddObservation(rightHipJointAngles.z);
 
         // Ajouter les angles des articulations pour la jambe gauche
-        sensor.AddObservation(leftHeelJoint.angle);
         sensor.AddObservation(leftTibiaJoint.angle);
         sensor.AddObservation(leftFeetJoint.angle);
-        Debug.Log($"Angles de la jambe gauche: Heel {leftHeelJoint.angle}, Tibia {leftTibiaJoint.angle}, Feet {leftFeetJoint.angle}");
 
         // Ajouter les angles des articulations pour la jambe droite
-        sensor.AddObservation(rightHeelJoint.angle);
         sensor.AddObservation(rightTibiaJoint.angle);
         sensor.AddObservation(rightFeetJoint.angle);
-        Debug.Log($"Angles de la jambe droite: Heel {rightHeelJoint.angle}, Tibia {rightTibiaJoint.angle}, Feet {rightFeetJoint.angle}");
 
         // Ajouter des booléens pour indiquer si les pieds touchent le sol
-        bool isLeftFootGrounded = leftFeet.GetComponent<Collider>().isTrigger == false;
-        bool isRightFootGrounded = rightFeet.GetComponent<Collider>().isTrigger == false;
-        sensor.AddObservation(isLeftFootGrounded);
-        sensor.AddObservation(isRightFootGrounded);
-        Debug.Log($"Pieds au sol: Gauche {isLeftFootGrounded}, Droite {isRightFootGrounded}");
+        sensor.AddObservation(leftFootCollisionManager.GetIsGrounded() ? 1.0f : 0.0f);
+        sensor.AddObservation(rightFootCollisionManager.GetIsGrounded() ? 1.0f : 0.0f);
+        Debug.Log(leftFootCollisionManager.GetIsGrounded());
     }
 
 
@@ -169,7 +177,6 @@ public class alanScript : Agent
 
     void Update()
     {
-        transform.Translate(Vector3.right*Time.deltaTime * speed);
         // Demander des décisions et actions à chaque frame
         RequestDecision();
         RequestAction();
