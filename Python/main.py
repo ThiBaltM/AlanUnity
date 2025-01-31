@@ -6,6 +6,8 @@ from Actor import Actor
 from Critic import Critic
 import torch
 import torch.nn.functional as F
+from visualizer import visualize_network_dynamic
+
 def extract_extra_features(structured_ob):
     """
     Convertit les objectifs et pénalités en features normalisées pour le Critique.
@@ -65,6 +67,8 @@ action_spec = env.behavior_specs[behavior_name].action_spec
 
 print(f"Started script")
 # Entrainer l'agent
+screen, clock, layers = None, None,[]
+
 for episode in range(num_episodes):
     print(f"Démarrage de l'épisode {episode}")
     env.reset()
@@ -142,7 +146,23 @@ for episode in range(num_episodes):
                 if action is not None:
                     noise = np.random.normal(0, 0.1, action.shape)  # Ajouter un peu de bruit aléatoire
                     action = np.clip(action + noise, -1, 1)  # Assurer que l'action reste entre [-1,1]
+                
+                activations = []
+                x = ob_tensor
+                for layer in actor.fc:
+                    if isinstance(layer, torch.nn.Linear):
+                        x = F.relu(layer(x))  # Calculer les activations
+                        activations.append(x.detach().numpy()[0].tolist())
 
+ # Si layers est vide, initialisez-le par défaut
+                if not layers:
+                    print("Initialisation de layers par défaut.")
+                    layers = [[] for _ in range(len(actor.fc) if hasattr(actor, 'fc') else 0)]
+
+                # Visualiser dynamiquement avec les activations et les sorties
+                screen, clock, layers = visualize_network_dynamic(actor, activations, screen, clock)
+
+                
                 print("Action générée :", action)
 
                 extra_features = extract_extra_features(structured_ob)
@@ -152,7 +172,6 @@ for episode in range(num_episodes):
                 # Passer l'état et les features supplémentaires au Critic
                 value = critic(ob_tensor, extra_features).detach().numpy()
                 print("Valeur de l'état :", value.item())
-
                 """action = actor(ob)
                 value = critic(ob)
 
