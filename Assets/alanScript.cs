@@ -150,30 +150,51 @@ public class AlanScript : Agent
     }
 
 
-    public override void OnActionReceived(ActionBuffers actionBuffers){
-        // Appliquer les actions de l'IA aux joints
-        float leftHeelTarget = actionBuffers.ContinuousActions[0];
-        float leftTibiaTarget = actionBuffers.ContinuousActions[1];
-        float leftFeetTarget = actionBuffers.ContinuousActions[2];
+    public override void OnActionReceived(ActionBuffers actionBuffers)
+    {
+        if (actionBuffers.ContinuousActions.Length < 8)
+        {
+            Debug.LogError($"Trop peu d'actions reçues ! Attendu : 8, Reçu : {actionBuffers.ContinuousActions.Length}");
+            return; // On ne fait rien si le nombre d'actions est incorrect
+        }
+        // Récupérer les actions envoyées par Python
+        float leftHipXTarget = actionBuffers.ContinuousActions[0];  // Hanche gauche (avant/arrière)
+        float leftHipZTarget = actionBuffers.ContinuousActions[1];  // Hanche gauche (côtés)
+        float leftKneeTarget = actionBuffers.ContinuousActions[2];  // Genou gauche
+        float leftAnkleTarget = actionBuffers.ContinuousActions[3]; // Cheville gauche
 
-        float rightHeelTarget = actionBuffers.ContinuousActions[0];
-        float rightTibiaTarget = actionBuffers.ContinuousActions[1];
-        float rightFeetTarget = actionBuffers.ContinuousActions[2];
+        float rightHipXTarget = actionBuffers.ContinuousActions[4];  // Hanche droite (avant/arrière)
+        float rightHipZTarget = actionBuffers.ContinuousActions[5];  // Hanche droite (côtés)
+        float rightKneeTarget = actionBuffers.ContinuousActions[6];  // Genou droit
+        float rightAnkleTarget = actionBuffers.ContinuousActions[7]; // Cheville droite
 
-        SetJointTarget(leftHeelJoint, leftHeelTarget);
-        SetJointTarget(leftTibiaJoint, leftTibiaTarget);
-        SetJointTarget(leftFeetJoint, leftFeetTarget);
+        // Appliquer les actions aux articulations
+        ApplyHipRotation(leftHeel, leftHipXTarget, leftHipZTarget);
+        ApplyHipRotation(rightHeel, rightHipXTarget, rightHipZTarget);
 
-        SetJointTarget(rightHeelJoint, rightHeelTarget);
-        SetJointTarget(rightTibiaJoint, rightTibiaTarget);
-        SetJointTarget(rightFeetJoint, rightFeetTarget);
+        SetJointTarget(leftTibiaJoint, leftKneeTarget);
+        SetJointTarget(leftFeetJoint, leftAnkleTarget);
+        SetJointTarget(rightTibiaJoint, rightKneeTarget);
+        SetJointTarget(rightFeetJoint, rightAnkleTarget);
     }
+
+
 
     void SetJointTarget(HingeJoint joint, float target)    {
             JointSpring spring = joint.spring;
             spring.targetPosition = target;
             joint.spring = spring;
     }
+
+    void ApplyHipRotation(GameObject hip, float targetX, float targetZ)
+    {
+        Vector3 currentRotation = hip.transform.localEulerAngles;
+
+        // Modifier uniquement les axes X et Z
+        hip.transform.localRotation = Quaternion.Euler(targetX, currentRotation.y, targetZ);
+    }
+
+
 
     void Update()
     {

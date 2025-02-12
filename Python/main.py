@@ -52,15 +52,12 @@ channel = EngineConfigurationChannel()
 channel.set_configuration_parameters(time_scale=1.0)
 
 # Charger l'environnement Unity
-env = UnityEnvironment(file_name=exePath,side_channels=[channel], worker_id=3, no_graphics=True)
+env = UnityEnvironment(file_name=exePath,side_channels=[channel], worker_id=3, no_graphics=False)
 
 # Définir le nombre d'épisodes
 num_episodes = 1000
-print("test1")
 # Obtenir le comportement par défaut
 env.reset()
-print("test2")
-
 behavior_name = list(env.behavior_specs)[0]
 # Obtenir l'ActionSpec du comportement
 action_spec = env.behavior_specs[behavior_name].action_spec
@@ -73,6 +70,8 @@ for episode in range(num_episodes):
     print(f"Démarrage de l'épisode {episode}")
     env.reset()
     decision_steps, terminal_steps = env.get_steps(behavior_name)
+    num_actions = action_spec.continuous_size
+    
 
     while len(terminal_steps) == 0:
         if len(decision_steps) > 0:
@@ -142,10 +141,10 @@ for episode in range(num_episodes):
                 assert ob_tensor.shape[1] == input_dim, f"Erreur: ob_tensor a {ob_tensor.shape[1]} dimensions, attendu {input_dim}"
 
                 # Passer l'observation corrigée à l'Acteur
-                action = actor(ob_tensor).detach().numpy()
-                if action is not None:
-                    noise = np.random.normal(0, 0.1, action.shape)  # Ajouter un peu de bruit aléatoire
-                    action = np.clip(action + noise, -1, 1)  # Assurer que l'action reste entre [-1,1]
+                actions = actor(ob_tensor).detach().numpy()
+                if actions is not None:
+                    noise = np.random.normal(0, 0.1, actions.shape)  # Ajouter un peu de bruit aléatoire
+                    actions = np.clip(actions + noise, -1, 1)  # Assurer que l'action reste entre [-1,1]
                 
                 activations = []
                 x = ob_tensor
@@ -163,7 +162,7 @@ for episode in range(num_episodes):
                 screen, clock, layers = visualize_network_dynamic(actor, activations, screen, clock)
 
                 
-                print("Action générée :", action)
+                print("Action générée :", actions)
 
                 extra_features = extract_extra_features(structured_ob)
                 # Vérifier la taille du tensor avant de passer au Critic
@@ -172,7 +171,7 @@ for episode in range(num_episodes):
                 # Passer l'état et les features supplémentaires au Critic
                 value = critic(ob_tensor, extra_features).detach().numpy()
                 print("Valeur de l'état :", value.item())
-                """action = actor(ob)
+                """actions = actor(ob)
                 value = critic(ob)
 
                 print("Action générée :", action.detach().numpy())
@@ -183,11 +182,9 @@ for episode in range(num_episodes):
                     for o in obs:
                         print(round(o,2), " | ")
                     print(f"Observation {i}: {obs}")"""
-        # Initialiser des actions par défaut (zéro) avec les bonnes dimensions
-        actions = [[0] * action_spec.continuous_size] * len(decision_steps)
 
-        # Envoyer les actions à Unity
         #env.set_actions(behavior_name, actions)
+        print(f"Nombre d'agents : {len(decision_steps)}, Nombre d'actions continues attendues : {num_actions}")
 
         env.step()
 
