@@ -4,6 +4,8 @@ using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
 using System;
+using Unity.VisualScripting;
+using UnityEngine.UIElements;
 
 public class AlanScript : Agent
 {
@@ -16,11 +18,11 @@ public class AlanScript : Agent
     public GameObject rightTibia;
     public GameObject rightFeet;
 
-    private HingeJoint leftHeelJoint;
+    private ConfigurableJoint leftHeelJoint;
     private HingeJoint leftTibiaJoint;
     private HingeJoint leftFeetJoint;
 
-    private HingeJoint rightHeelJoint;
+    private ConfigurableJoint rightHeelJoint;
     private HingeJoint rightTibiaJoint;
     private HingeJoint rightFeetJoint;
 
@@ -52,11 +54,11 @@ public class AlanScript : Agent
         leftFootCollisionManager = leftFeet.GetComponent<CollisionManager>();
         rightFootCollisionManager = rightFeet.GetComponent<CollisionManager>();
 
-        leftHeelJoint = leftHeel.GetComponent<HingeJoint>();
+        leftHeelJoint = leftHeel.GetComponent<ConfigurableJoint>();
         leftTibiaJoint = leftTibia.GetComponent<HingeJoint>();
         leftFeetJoint = leftFeet.GetComponent<HingeJoint>();
 
-        rightHeelJoint = rightHeel.GetComponent<HingeJoint>();
+        rightHeelJoint = rightHeel.GetComponent<ConfigurableJoint>();
         rightTibiaJoint = rightTibia.GetComponent<HingeJoint>();
         rightFeetJoint = rightFeet.GetComponent<HingeJoint>();
 
@@ -97,10 +99,10 @@ public class AlanScript : Agent
         rightFeet.transform.rotation = rightFeetInitialRotation;
 
         // Réinitialiser les angles des articulations
-        ResetJointAngles(leftHeelJoint);
+        ResetHeelAngles(leftHeelJoint);
         ResetJointAngles(leftTibiaJoint);
         ResetJointAngles(leftFeetJoint);
-        ResetJointAngles(rightHeelJoint);
+        ResetHeelAngles(rightHeelJoint);
         ResetJointAngles(rightTibiaJoint);
         ResetJointAngles(rightFeetJoint);
     }
@@ -110,6 +112,26 @@ public class AlanScript : Agent
         JointSpring spring = joint.spring;
         spring.targetPosition = 0; // Position initiale
         joint.spring = spring;
+    }
+
+    public void ResetHeelAngles(ConfigurableJoint joint)
+    {
+        // Créer un quaternion pour représenter l'angle de rotation cible
+        Quaternion targetRotation = Quaternion.Euler(0, 0, 0); // Position initiale
+
+        // Appliquer la rotation cible au joint configurable
+        joint.targetRotation = targetRotation;
+
+        // Définir les paramètres du JointDrive pour les mouvements angulaires
+        JointDrive angularDrive = new JointDrive
+        {
+            positionSpring = 1000,
+            positionDamper = 10,
+            maximumForce = 1000
+        };
+
+        joint.angularXDrive = angularDrive;
+        joint.angularYZDrive = angularDrive;
     }
 
 
@@ -155,8 +177,11 @@ public class AlanScript : Agent
         if (actionBuffers.ContinuousActions.Length < 8)
         {
             Debug.LogError($"Trop peu d'actions reçues ! Attendu : 8, Reçu : {actionBuffers.ContinuousActions.Length}");
-            return; // On ne fait rien si le nombre d'actions est incorrect
+            return;
         }
+
+        // Afficher les actions reçues
+        Debug.LogError($"Actions reçues : {string.Join(", ", actionBuffers.ContinuousActions)}");
         // Récupérer les actions envoyées par Python
         float leftHipXTarget = actionBuffers.ContinuousActions[0];  // Hanche gauche (avant/arrière)
         float leftHipZTarget = actionBuffers.ContinuousActions[1];  // Hanche gauche (côtés)
@@ -169,8 +194,8 @@ public class AlanScript : Agent
         float rightAnkleTarget = actionBuffers.ContinuousActions[7]; // Cheville droite
 
         // Appliquer les actions aux articulations
-        ApplyHipRotation(leftHeel, leftHipXTarget, leftHipZTarget);
-        ApplyHipRotation(rightHeel, rightHipXTarget, rightHipZTarget);
+        SetHipAngles(leftHeelJoint, leftHipXTarget, leftHipZTarget);
+        SetHipAngles(rightHeelJoint, rightHipXTarget, rightHipZTarget);
 
         SetJointTarget(leftTibiaJoint, leftKneeTarget);
         SetJointTarget(leftFeetJoint, leftAnkleTarget);
@@ -180,18 +205,62 @@ public class AlanScript : Agent
 
 
 
-    void SetJointTarget(HingeJoint joint, float target)    {
-            JointSpring spring = joint.spring;
-            spring.targetPosition = target;
-            joint.spring = spring;
+    public void SetJointTarget(HingeJoint joint, float angle)
+    {
+        if (angle < -1)
+        {
+            angle = -1;
+        }else if (angle > 1)
+        {
+            angle = 1;
+        }
+        // Définir les angles minimaux et maximaux pour le HingeJoint
+        float minAngle = 0;
+        float maxAngle = 90;
+
+        // Calculer l'angle proportionnel
+        float targetAngle = Mathf.Lerp(minAngle, maxAngle, (angle + 1) / 2f);
+
+        // 1. Créer un objet de type JointSpring
+        JointSpring spring = joint.spring;
+
+        // 2. Définir la force et l'amortissement
+        spring.spring = 1000f;
+        spring.damper = 1000f; // Amortissement pour éviter les oscillations
+
+        // Définir la position cible
+        spring.targetPosition = targetAngle;
+
+        joint.spring = spring;
     }
 
-    void ApplyHipRotation(GameObject hip, float targetX, float targetZ)
+    public void SetHipAngles(ConfigurableJoint heel, float angleX, float angleY)
     {
-        Vector3 currentRotation = hip.transform.localEulerAngles;
+        if (angleX < -1)
+        {
+            angleX = -1;
+        }
+        else if (angleX > 1)
+        {
+            angleX = 1;
+        }
+        if (angleY < -1)
+        {
+            angleY = -1;
+        }
+        else if (angleY > 1)
+        {
+            angleY = 1;
+        }
+        // Calculer les angles proportionnels
+        float targetAngleX = Mathf.Lerp(-45, 45, (angleX + 1) / 2f);
+        float targetAngleY = Mathf.Lerp(-90, 90, (angleY + 1) / 2f);
 
-        // Modifier uniquement les axes X et Z
-        hip.transform.localRotation = Quaternion.Euler(targetX, currentRotation.y, targetZ);
+        // Créer un quaternion pour représenter l'angle de rotation cible en fonction des angles calculés
+        Quaternion targetRotation = Quaternion.Euler(targetAngleX, targetAngleY, 0);
+
+        // Appliquer la rotation cible au joint configurable
+        heel.targetRotation = targetRotation;
     }
 
 
