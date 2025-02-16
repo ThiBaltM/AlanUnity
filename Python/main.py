@@ -31,7 +31,8 @@ OBSERVATION_KEYS = {
     },
     "feet_contact": {
         "left_foot_grounded": 12, "right_foot_grounded": 13
-    }
+    },
+    #"ObjectivDirection":14
 }
 
 input_dim = 14  # Nombre d'observations
@@ -60,7 +61,7 @@ for episode in range(num_episodes):
     decision_steps, terminal_steps = env.get_steps(behavior_name)
     
     num_actions = action_spec.continuous_size
-    print(f"Num actions (continuous): {num_actions}, Discrete branches: {action_spec.discrete_size}")
+    #print(f"Num actions (continuous): {num_actions}, Discrete branches: {action_spec.discrete_size}")
 
     if num_actions == 0 and action_spec.discrete_size > 0:
         print("⚠️ Cet agent utilise des actions discrètes et non continues !")
@@ -104,7 +105,7 @@ for episode in range(num_episodes):
                     reward -= 1
 
                 structured_ob["reward"] = reward
-                print(f"Observations de l'agent {agent_id} :", structured_ob)
+                #print(f"Observations de l'agent {agent_id} :", structured_ob)
 
                 ob_tensor = torch.FloatTensor(
                     structured_ob["head_position"] +
@@ -132,14 +133,13 @@ for episode in range(num_episodes):
 
                 screen, clock, layers = visualize_network_dynamic(actor, activations, screen, clock)
 
-                print("Action générée :", actions)
+                #print("Action générée :", actions)
 
                 extra_features = extract_extra_features(structured_ob)
-                print(f"ob_tensor shape: {ob_tensor.shape}, extra_features shape: {extra_features.shape}")
+                #print(f"ob_tensor shape: {ob_tensor.shape}, extra_features shape: {extra_features.shape}")
 
                 value = critic(ob_tensor, extra_features).detach().numpy()
-                print("Valeur de l'état :", value.item())
-            print(num_actions,"ahhh\n\n")
+                #print("Valeur de l'état :", value.item())
             if num_actions > 0:
                 try:
                     actions = np.array(actions).reshape((len(decision_steps), num_actions))
@@ -150,7 +150,7 @@ for episode in range(num_episodes):
             else:
                 actions_tuple = ActionTuple(discrete=np.zeros((len(decision_steps), action_spec.discrete_size), dtype=np.int32))
 
-            print(f"Nombre d'agents : {len(decision_steps)}, Nombre d'actions continues attendues : {num_actions}")
+            #print(f"Nombre d'agents : {len(decision_steps)}, Nombre d'actions continues attendues : {num_actions}")
 
             if len(decision_steps) > 0:
                 env.set_actions(behavior_name, actions_tuple)

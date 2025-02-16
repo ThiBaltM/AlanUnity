@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class CollisionManager : MonoBehaviour
 {
-    private bool isGounded = false;
+    private bool isGrounded = false;
     // Start is called before the first frame update
     void Start()
     {
@@ -21,7 +21,7 @@ public class CollisionManager : MonoBehaviour
     {
         if (other.CompareTag("Ground"))
         {
-            isGounded = true;
+            isGrounded = true;
         }
     }
 
@@ -29,12 +29,12 @@ public class CollisionManager : MonoBehaviour
     {
         if (other.CompareTag("Ground"))
         {
-            isGounded=false;
+            isGrounded=false;
         }
     }
 
     public bool GetIsGrounded()
     {
-        return isGounded;
+        return isGrounded;
     }
 }

@@ -18,6 +18,8 @@ public class AlanScript : Agent
     public GameObject rightTibia;
     public GameObject rightFeet;
 
+    public GameObject objectiv;
+
     private ConfigurableJoint leftHeelJoint;
     private HingeJoint leftTibiaJoint;
     private HingeJoint leftFeetJoint;
@@ -46,6 +48,7 @@ public class AlanScript : Agent
 
     private CollisionManager leftFootCollisionManager;
     private CollisionManager rightFootCollisionManager;
+    private CollisionManager headCollisionManager;
 
     // Start is called before the first frame update
     void Start()
@@ -53,6 +56,7 @@ public class AlanScript : Agent
 
         leftFootCollisionManager = leftFeet.GetComponent<CollisionManager>();
         rightFootCollisionManager = rightFeet.GetComponent<CollisionManager>();
+        headCollisionManager = head.GetComponent<CollisionManager>();
 
         leftHeelJoint = leftHeel.GetComponent<ConfigurableJoint>();
         leftTibiaJoint = leftTibia.GetComponent<HingeJoint>();
@@ -168,7 +172,19 @@ public class AlanScript : Agent
         // Ajouter des booléens pour indiquer si les pieds touchent le sol
         sensor.AddObservation(leftFootCollisionManager.GetIsGrounded() ? 1.0f : 0.0f);
         sensor.AddObservation(rightFootCollisionManager.GetIsGrounded() ? 1.0f : 0.0f);
-        Debug.Log(leftFootCollisionManager.GetIsGrounded());
+
+        // Vecteur direction du personnage
+        Vector3 forwardDirection = head.transform.forward;
+
+        // Vecteur direction vers la cible
+        Vector3 targetDirection = (objectiv.transform.position - head.transform.position).normalized;
+
+        // Calculer l'angle entre les deux vecteurs
+        float angle = Vector3.SignedAngle(forwardDirection, targetDirection, Vector3.up);
+
+        // Ajouter l'angle comme observation
+        sensor.AddObservation(angle / 180.0f); // Normalisation (-1 à 1)
+        Debug.Log(angle / 180.0f);
     }
 
 
@@ -180,8 +196,6 @@ public class AlanScript : Agent
             return;
         }
 
-        // Afficher les actions reçues
-        Debug.LogError($"Actions reçues : {string.Join(", ", actionBuffers.ContinuousActions)}");
         // Récupérer les actions envoyées par Python
         float leftHipXTarget = actionBuffers.ContinuousActions[0];  // Hanche gauche (avant/arrière)
         float leftHipZTarget = actionBuffers.ContinuousActions[1];  // Hanche gauche (côtés)
@@ -234,7 +248,7 @@ public class AlanScript : Agent
         joint.spring = spring;
     }
 
-    public void SetHipAngles(ConfigurableJoint heel, float angleX, float angleY)
+    public void SetHipAngles(ConfigurableJoint heel, float angleX, float angleZ)
     {
         if (angleX < -1)
         {
@@ -244,32 +258,45 @@ public class AlanScript : Agent
         {
             angleX = 1;
         }
-        if (angleY < -1)
+        if (angleZ < -1)
         {
-            angleY = -1;
+            angleZ = -1;
         }
-        else if (angleY > 1)
+        else if (angleZ > 1)
         {
-            angleY = 1;
+            angleZ = 1;
         }
         // Calculer les angles proportionnels
         float targetAngleX = Mathf.Lerp(-45, 45, (angleX + 1) / 2f);
-        float targetAngleY = Mathf.Lerp(-90, 90, (angleY + 1) / 2f);
+        float targetAngleZ = Mathf.Lerp(-90, 90, (angleZ + 1) / 2f);
 
         // Créer un quaternion pour représenter l'angle de rotation cible en fonction des angles calculés
-        Quaternion targetRotation = Quaternion.Euler(targetAngleX, targetAngleY, 0);
+        Quaternion targetRotation = Quaternion.Euler(targetAngleX, 0, targetAngleZ);
 
         // Appliquer la rotation cible au joint configurable
         heel.targetRotation = targetRotation;
     }
 
-
+    void getObjectivDistance()
+    {   
+        double distanceX = objectiv.transform.position.x - head.transform.position.x;
+        double distanceY = objectiv.transform.position.y - head.transform.position.y;
+        float distance = (float)Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
+        AddReward(distance*(-10));
+    }
 
     void Update()
     {
         // Demander des décisions et actions à chaque frame
         RequestDecision();
         RequestAction();
+        AddReward(0.1f);
+
+        if (headCollisionManager.GetIsGrounded())
+        {
+            getObjectivDistance();
+            EndEpisode();
+        }
     }
 
 }
