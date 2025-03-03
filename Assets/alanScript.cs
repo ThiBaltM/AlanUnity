@@ -109,6 +109,22 @@ public class AlanScript : Agent
         ResetHeelAngles(rightHeelJoint);
         ResetJointAngles(rightTibiaJoint);
         ResetJointAngles(rightFeetJoint);
+
+        //annuler l'intertie
+        head.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        head.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        leftHeel.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        leftHeel.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        leftTibia.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        leftTibia.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        leftFeet.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        leftFeet.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        rightHeel.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        rightHeel.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        rightTibia.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        rightTibia.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+        rightFeet.GetComponent<Rigidbody>().velocity = Vector3.zero;
+        rightFeet.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
     }
 
     void ResetJointAngles(HingeJoint joint)

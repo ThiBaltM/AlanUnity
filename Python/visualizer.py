@@ -126,7 +126,7 @@ def visualize_network_dynamic(actor, activations=None, screen=None, clock=None):
 
 
     # 📌 Mise à jour de l'écran
-    #pygame.display.flip()
+    pygame.display.flip()
     clock.tick(30)  # 30 FPS
 
     return screen, clock,layers
