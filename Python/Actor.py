@@ -1,6 +1,8 @@
 
 #Le rôle de l’acteur est de transformer les obsevrations en actions continues (dans l’intervalle [-1, 1])
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Actor(nn.Module):
     def __init__(self, input_dim, action_dim):
@@ -13,6 +15,5 @@ class Actor(nn.Module):
             nn.Linear(64, action_dim), # Couche de sortie
             nn.Tanh()                 # Sortie dans [-1, 1]
         )
-
     def forward(self, x):
-        return self.fc(x)
+        return self.fc(x)        

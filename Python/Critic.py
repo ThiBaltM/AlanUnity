@@ -1,23 +1,15 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Critic(nn.Module):
-    def __init__(self, input_dim, extra_dim=5):
+    def __init__(self, input_dim):
         super(Critic, self).__init__()
-        total_input_dim = input_dim + extra_dim  # Assurez-vous que cette ligne existe !
-        
-        self.fc = nn.Sequential(
-            nn.Linear(total_input_dim, 128),  # Ici, total_input_dim doit être correct
-            nn.ReLU(),
-            nn.LayerNorm(128),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Linear(32, 1)  # Sortie scalaire
-        )
+        self.fc1 = nn.Linear(input_dim, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 1)
 
-    def forward(self, state, extra_features):
-        x = torch.cat([state, extra_features], dim=-1)  # Concaténer l'entrée
-        return self.fc(x)
-
+    def forward(self, x, extra_features=None):  # 👈 Extra_features est optionnel
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)

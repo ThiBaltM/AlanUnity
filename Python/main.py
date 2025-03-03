@@ -9,34 +9,27 @@ import torch
 import torch.nn.functional as F
 from visualizer import visualize_network_dynamic
 
-def extract_extra_features(structured_ob):
-    """
-    Convertit les objectifs et pénalités en features normalisées pour le Critique.
-    """
-    extra_features = [
-        float(structured_ob["objectives"]["is_standing"]),
-        float(structured_ob["objectives"]["moving_forward"]),
-        structured_ob["objectives"]["distance_traveled"],
-        float(structured_ob["penalties"]["has_fallen"]),
-        float(structured_ob["penalties"]["excessive_oscillations"])
-    ]
-    return torch.FloatTensor(extra_features).unsqueeze(0)
-
 OBSERVATION_KEYS = {
     "head_position": slice(0, 3),
     "head_rotation": slice(3, 6),
+    "left_hip_joint_angle": {
+        "x": 6, "z": 7
+    },
+    "right_hip_joint_angle": {
+        "x": 8, "z": 9
+    },
     "joint_angles": {
-        "left_hip": 6, "left_tibia": 7, "left_foot": 8,
-        "right_hip": 9, "right_tibia": 10, "right_foot": 11
+        "left_tibia": 10, "left_foot": 11,
+        "right_tibia": 12, "right_foot": 13
     },
     "feet_contact": {
-        "left_foot_grounded": 12, "right_foot_grounded": 13
+        "left_foot_grounded": 14, "right_foot_grounded": 15
     },
-    #"ObjectivDirection":14
+    "objectiv_direction": 16  # Correction finale de l'index
 }
 
-input_dim = 14  # Nombre d'observations
-action_dim = 8  # Nombre d'actions (contrôle des articulations)
+input_dim = 17  # Assuré que cela correspond au nombre d'observations attendu
+action_dim = 8
 
 actor = Actor(input_dim, action_dim)
 critic = Critic(input_dim)
@@ -61,62 +54,40 @@ for episode in range(num_episodes):
     decision_steps, terminal_steps = env.get_steps(behavior_name)
     
     num_actions = action_spec.continuous_size
-    #print(f"Num actions (continuous): {num_actions}, Discrete branches: {action_spec.discrete_size}")
-
-    if num_actions == 0 and action_spec.discrete_size > 0:
-        print("⚠️ Cet agent utilise des actions discrètes et non continues !")
 
     while len(terminal_steps) == 0:
         if len(decision_steps) > 0:
             for agent_id in decision_steps.agent_id:
-                observations = np.array(decision_steps[agent_id].obs, dtype=np.float32).flatten()
+                observations = np.array(decision_steps[agent_id].obs, dtype=np.float32).flatten()                
+                if len(observations) != input_dim:
+                    print(f"⚠️ Alerte : Nombre d'observations incorrect ({len(observations)} vs attendu {input_dim})")
+                    continue  # On ignore cette itération pour éviter l'erreur
+                
                 ob = torch.tensor(observations)
 
                 structured_ob = {
                     "head_position": ob[OBSERVATION_KEYS["head_position"]].tolist(),
                     "head_rotation": ob[OBSERVATION_KEYS["head_rotation"]].tolist(),
+                    "left_hip_joint_angle": {key: ob[idx].item() for key, idx in OBSERVATION_KEYS["left_hip_joint_angle"].items()},
+                    "right_hip_joint_angle": {key: ob[idx].item() for key, idx in OBSERVATION_KEYS["right_hip_joint_angle"].items()},
                     "joint_angles": {key: ob[idx].item() for key, idx in OBSERVATION_KEYS["joint_angles"].items()},
-                    "feet_contact": {key: bool(int(ob[idx].item())) for key, idx in OBSERVATION_KEYS["feet_contact"].items()}
+                    "feet_contact": {key: bool(int(ob[idx].item())) for key, idx in OBSERVATION_KEYS["feet_contact"].items()},
+                    "objectiv_direction": ob[OBSERVATION_KEYS["objectiv_direction"]].item()
                 }
-
-                structured_ob["objectives"] = {
-                    "is_standing": structured_ob["head_position"][1] > 1.0,
-                    "moving_forward": structured_ob["head_position"][2] > 0,
-                    "distance_traveled": structured_ob["head_position"][2]
-                }
-
-                structured_ob["penalties"] = {
-                    "has_fallen": structured_ob["head_position"][1] < 0.5,
-                    "excessive_oscillations": any(
-                        abs(structured_ob["joint_angles"][key]) > 5.0
-                        for key in structured_ob["joint_angles"]
-                    )
-                }
-
-                reward = 0
-                if structured_ob["objectives"]["is_standing"]:
-                    reward += 1
-                if structured_ob["objectives"]["moving_forward"]:
-                    reward += 10
-                reward += structured_ob["objectives"]["distance_traveled"]
-                if structured_ob["penalties"]["has_fallen"]:
-                    reward -= 10
-                if structured_ob["penalties"]["excessive_oscillations"]:
-                    reward -= 1
-
-                structured_ob["reward"] = reward
-                #print(f"Observations de l'agent {agent_id} :", structured_ob)
 
                 ob_tensor = torch.FloatTensor(
                     structured_ob["head_position"] +
                     structured_ob["head_rotation"] +
+                    list(structured_ob["left_hip_joint_angle"].values()) +
+                    list(structured_ob["right_hip_joint_angle"].values()) +
                     list(structured_ob["joint_angles"].values()) +
-                    list(structured_ob["feet_contact"].values())
+                    list(structured_ob["feet_contact"].values()) +
+                    [structured_ob["objectiv_direction"]]
                 ).unsqueeze(0)
 
                 assert ob_tensor.shape[1] == input_dim, f"Erreur: ob_tensor a {ob_tensor.shape[1]} dimensions, attendu {input_dim}"
 
-                actions = actor(ob_tensor).detach().numpy()
+                actions = actor.fc(ob_tensor).detach().numpy()
                 if actions is not None:
                     noise = np.random.normal(0, 0.1, actions.shape)
                     actions = np.clip(actions + noise, -1, 1)
@@ -133,13 +104,8 @@ for episode in range(num_episodes):
 
                 screen, clock, layers = visualize_network_dynamic(actor, activations, screen, clock)
 
-                #print("Action générée :", actions)
+                value = critic(ob_tensor).detach().numpy()
 
-                extra_features = extract_extra_features(structured_ob)
-                #print(f"ob_tensor shape: {ob_tensor.shape}, extra_features shape: {extra_features.shape}")
-
-                value = critic(ob_tensor, extra_features).detach().numpy()
-                #print("Valeur de l'état :", value.item())
             if num_actions > 0:
                 try:
                     actions = np.array(actions).reshape((len(decision_steps), num_actions))
@@ -150,14 +116,13 @@ for episode in range(num_episodes):
             else:
                 actions_tuple = ActionTuple(discrete=np.zeros((len(decision_steps), action_spec.discrete_size), dtype=np.int32))
 
-            #print(f"Nombre d'agents : {len(decision_steps)}, Nombre d'actions continues attendues : {num_actions}")
-
             if len(decision_steps) > 0:
                 env.set_actions(behavior_name, actions_tuple)
             else:
                 print("⚠️ Aucun agent actif, pas d'actions à envoyer.")
 
         env.step()
+        
         decision_steps, terminal_steps = env.get_steps(behavior_name)
-
+    print('score de lépisode : '+str(float(terminal_steps.reward[0])))
 env.close()
