@@ -11,6 +11,9 @@ from Actor import Actor
 from Critic import Critic
 from torch.optim.lr_scheduler import StepLR
 
+timeScale = 50
+showGraphics = True
+
 # 📌 Définition du device (GPU si dispo)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_tensor_type(torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor)
@@ -55,8 +58,8 @@ critic_scheduler = StepLR(critic_optimizer, step_size=500, gamma=0.9)
 
 # ✅ Chargement de l'environnement Unity
 channel = EngineConfigurationChannel()
-channel.set_configuration_parameters(time_scale=50.0)
-env = UnityEnvironment(file_name=exePath, side_channels=[channel], worker_id=3, no_graphics=True)
+channel.set_configuration_parameters(time_scale=timeScale)
+env = UnityEnvironment(file_name=exePath, side_channels=[channel], worker_id=3, no_graphics=not showGraphics)
 
 # ✅ Initialisation
 env.reset()

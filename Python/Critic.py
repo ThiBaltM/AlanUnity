@@ -10,8 +10,8 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(64, 1)
 
     def forward(self, x, extra_features=None):  # 👈 Extra_features est optionnel
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = torch.sigmoid(self.fc1(x))
+        x = torch.sigmoid(self.fc2(x))
         return self.fc3(x)
 
     def save(self, path):
