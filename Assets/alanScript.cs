@@ -1,11 +1,8 @@
-
 using UnityEngine;
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
 using System;
-using Unity.VisualScripting;
-using UnityEngine.UIElements;
 
 public class AlanScript : Agent
 {
@@ -28,8 +25,6 @@ public class AlanScript : Agent
     private HingeJoint rightTibiaJoint;
     private HingeJoint rightFeetJoint;
 
-
-    //initial position
     // Variables pour sauvegarder les positions et rotations initiales
     private Vector3 headInitialPosition;
     private Quaternion headInitialRotation;
@@ -50,10 +45,18 @@ public class AlanScript : Agent
     private CollisionManager rightFootCollisionManager;
     private CollisionManager headCollisionManager;
 
+    // Variables pour suivre les positions et rotations précédentes
+    private Vector3 previousHeadPosition;
+    private Quaternion previousHeadRotation;
+    private Vector3 previousLeftHeelPosition;
+    private Quaternion previousLeftHeelRotation;
+    private Vector3 previousRightHeelPosition;
+    private Quaternion previousRightHeelRotation;
+    private float previousDistance = float.MaxValue;
+
     // Start is called before the first frame update
     void Start()
     {
-
         leftFootCollisionManager = leftFeet.GetComponent<CollisionManager>();
         rightFootCollisionManager = rightFeet.GetComponent<CollisionManager>();
         headCollisionManager = head.GetComponent<CollisionManager>();
@@ -81,8 +84,15 @@ public class AlanScript : Agent
         rightTibiaInitialRotation = rightTibia.transform.rotation;
         rightFeetInitialPosition = rightFeet.transform.position;
         rightFeetInitialRotation = rightFeet.transform.rotation;
-    }
 
+        // Initialiser les positions et rotations précédentes
+        previousHeadPosition = head.transform.position;
+        previousHeadRotation = head.transform.rotation;
+        previousLeftHeelPosition = leftHeel.transform.position;
+        previousLeftHeelRotation = leftHeel.transform.rotation;
+        previousRightHeelPosition = rightHeel.transform.position;
+        previousRightHeelRotation = rightHeel.transform.rotation;
+    }
 
     public override void OnEpisodeBegin()
     {
@@ -110,7 +120,7 @@ public class AlanScript : Agent
         ResetJointAngles(rightTibiaJoint);
         ResetJointAngles(rightFeetJoint);
 
-        //annuler l'intertie
+        // Annuler l'inertie
         head.GetComponent<Rigidbody>().velocity = Vector3.zero;
         head.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
         leftHeel.GetComponent<Rigidbody>().velocity = Vector3.zero;
@@ -125,6 +135,15 @@ public class AlanScript : Agent
         rightTibia.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
         rightFeet.GetComponent<Rigidbody>().velocity = Vector3.zero;
         rightFeet.GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
+
+        // Réinitialiser les positions et rotations précédentes
+        previousHeadPosition = head.transform.position;
+        previousHeadRotation = head.transform.rotation;
+        previousLeftHeelPosition = leftHeel.transform.position;
+        previousLeftHeelRotation = leftHeel.transform.rotation;
+        previousRightHeelPosition = rightHeel.transform.position;
+        previousRightHeelRotation = rightHeel.transform.rotation;
+        previousDistance = float.MaxValue;
     }
 
     void ResetJointAngles(HingeJoint joint)
@@ -154,36 +173,34 @@ public class AlanScript : Agent
         joint.angularYZDrive = angularDrive;
     }
 
-
     public override void CollectObservations(VectorSensor sensor)
     {
         // Ajouter la position de la tête (3 composantes pour le vecteur)
-        sensor.AddObservation(head.transform.position);
+        sensor.AddObservation(head.transform.position / 10.0f); // Normalisation
 
         // Ajouter les angles de la tête sur les trois axes
-        Vector3 headAngles = head.transform.eulerAngles;
+        Vector3 headAngles = head.transform.eulerAngles / 180.0f; // Normalisation
         sensor.AddObservation(headAngles.x);
         sensor.AddObservation(headAngles.y);
         sensor.AddObservation(headAngles.z);
 
         // Récupérer l'orientation locale des articulations de la hanche
-        Vector3 leftHipJointAngles = leftHeelJoint.transform.localRotation.eulerAngles;
-        Vector3 rightHipJointAngles = rightHeelJoint.transform.localRotation.eulerAngles;
+        Vector3 leftHipJointAngles = leftHeelJoint.transform.localRotation.eulerAngles / 180.0f; // Normalisation
+        Vector3 rightHipJointAngles = rightHeelJoint.transform.localRotation.eulerAngles / 180.0f; // Normalisation
 
         // Ajouter les angles X et Z des hanches (éviter Y si ce n'est pas utile)
         sensor.AddObservation(leftHipJointAngles.x);
         sensor.AddObservation(leftHipJointAngles.z);
-
         sensor.AddObservation(rightHipJointAngles.x);
         sensor.AddObservation(rightHipJointAngles.z);
 
         // Ajouter les angles des articulations pour la jambe gauche
-        sensor.AddObservation(leftTibiaJoint.angle);
-        sensor.AddObservation(leftFeetJoint.angle);
+        sensor.AddObservation(leftTibiaJoint.angle / 90.0f); // Normalisation
+        sensor.AddObservation(leftFeetJoint.angle / 90.0f); // Normalisation
 
         // Ajouter les angles des articulations pour la jambe droite
-        sensor.AddObservation(rightTibiaJoint.angle);
-        sensor.AddObservation(rightFeetJoint.angle);
+        sensor.AddObservation(rightTibiaJoint.angle / 90.0f); // Normalisation
+        sensor.AddObservation(rightFeetJoint.angle / 90.0f); // Normalisation
 
         // Ajouter des booléens pour indiquer si les pieds touchent le sol
         sensor.AddObservation(leftFootCollisionManager.GetIsGrounded() ? 1.0f : 0.0f);
@@ -200,9 +217,7 @@ public class AlanScript : Agent
 
         // Ajouter l'angle comme observation
         sensor.AddObservation(angle / 180.0f); // Normalisation (-1 à 1)
-        Debug.Log(angle / 180.0f);
     }
-
 
     public override void OnActionReceived(ActionBuffers actionBuffers)
     {
@@ -223,6 +238,8 @@ public class AlanScript : Agent
         float rightKneeTarget = actionBuffers.ContinuousActions[6];  // Genou droit
         float rightAnkleTarget = actionBuffers.ContinuousActions[7]; // Cheville droite
 
+        Debug.Log("Actions Received: " + string.Join(", ", actionBuffers.ContinuousActions));
+
         // Appliquer les actions aux articulations
         SetHipAngles(leftHeelJoint, leftHipXTarget, leftHipZTarget);
         SetHipAngles(rightHeelJoint, rightHipXTarget, rightHipZTarget);
@@ -233,14 +250,13 @@ public class AlanScript : Agent
         SetJointTarget(rightFeetJoint, rightAnkleTarget);
     }
 
-
-
     public void SetJointTarget(HingeJoint joint, float angle)
     {
         if (angle < -1)
         {
             angle = -1;
-        }else if (angle > 1)
+        }
+        else if (angle > 1)
         {
             angle = 1;
         }
@@ -294,11 +310,73 @@ public class AlanScript : Agent
     }
 
     void getObjectivDistance()
-    {   
+    {
         double distanceX = objectiv.transform.position.x - head.transform.position.x;
         double distanceY = objectiv.transform.position.y - head.transform.position.y;
         float distance = (float)Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
-        AddReward(distance*(-10));
+
+        // Récompense négative basée sur la distance
+        AddReward(-distance * 0.1f);
+
+        // Récompense positive si l'agent se rapproche de l'objectif
+        if (distance < previousDistance)
+        {
+            AddReward(0.1f);
+        }
+
+        // Récompense positive si l'agent touche la sphère
+        if (distance < 0.5f)
+        {
+            AddReward(1.0f);
+            EndEpisode();
+        }
+
+        previousDistance = distance;
+    }
+
+    void CheckStabilityReward()
+    {
+        // Vérifier si l'agent est debout
+        bool isStanding = IsAgentStanding();
+
+        // Vérifier si l'agent ne bouge pas
+        bool isNotMoving = IsAgentNotMoving();
+
+        if (isStanding && isNotMoving)
+        {
+            AddReward(0.5f); // Récompense pour être debout sans bouger
+        }
+    }
+
+    bool IsAgentStanding()
+    {
+        // Vérifier les angles des articulations pour déterminer si l'agent est debout
+        float leftHipXAngle = leftHeelJoint.transform.localRotation.eulerAngles.x;
+        float leftHipZAngle = leftHeelJoint.transform.localRotation.eulerAngles.z;
+        float rightHipXAngle = rightHeelJoint.transform.localRotation.eulerAngles.x;
+        float rightHipZAngle = rightHeelJoint.transform.localRotation.eulerAngles.z;
+
+        // Définir des seuils pour les angles
+        float angleThreshold = 10.0f;
+
+        return Mathf.Abs(leftHipXAngle) < angleThreshold &&
+               Mathf.Abs(leftHipZAngle) < angleThreshold &&
+               Mathf.Abs(rightHipXAngle) < angleThreshold &&
+               Mathf.Abs(rightHipZAngle) < angleThreshold;
+    }
+
+    bool IsAgentNotMoving()
+    {
+        // Vérifier si les positions et rotations n'ont pas changé
+        float positionThreshold = 0.01f;
+        float rotationThreshold = 0.01f;
+
+        return Vector3.Distance(head.transform.position, previousHeadPosition) < positionThreshold &&
+               Quaternion.Angle(head.transform.rotation, previousHeadRotation) < rotationThreshold &&
+               Vector3.Distance(leftHeel.transform.position, previousLeftHeelPosition) < positionThreshold &&
+               Quaternion.Angle(leftHeel.transform.rotation, previousLeftHeelRotation) < rotationThreshold &&
+               Vector3.Distance(rightHeel.transform.position, previousRightHeelPosition) < positionThreshold &&
+               Quaternion.Angle(rightHeel.transform.rotation, previousRightHeelRotation) < rotationThreshold;
     }
 
     void Update()
@@ -313,9 +391,27 @@ public class AlanScript : Agent
             getObjectivDistance();
             EndEpisode();
         }
+
+        // Vérifier la stabilité et ajouter une récompense si nécessaire
+        CheckStabilityReward();
+
+        // Mettre à jour les positions et rotations précédentes
+        previousHeadPosition = head.transform.position;
+        previousHeadRotation = head.transform.rotation;
+        previousLeftHeelPosition = leftHeel.transform.position;
+        previousLeftHeelRotation = leftHeel.transform.rotation;
+        previousRightHeelPosition = rightHeel.transform.position;
+        previousRightHeelRotation = rightHeel.transform.rotation;
+
+        // Ajouter des logs pour le débogage
+        Debug.Log("Head Position: " + head.transform.position);
+        Debug.Log("Head Angles: " + head.transform.eulerAngles);
+        Debug.Log("Left Hip Angles: " + leftHeelJoint.transform.localRotation.eulerAngles);
+        Debug.Log("Right Hip Angles: " + rightHeelJoint.transform.localRotation.eulerAngles);
+        Debug.Log("Left Tibia Angle: " + leftTibiaJoint.angle);
+        Debug.Log("Right Tibia Angle: " + rightTibiaJoint.angle);
+        Debug.Log("Left Foot Grounded: " + leftFootCollisionManager.GetIsGrounded());
+        Debug.Log("Right Foot Grounded: " + rightFootCollisionManager.GetIsGrounded());
+        Debug.Log("Angle to Objective: " + Vector3.SignedAngle(head.transform.forward, (objectiv.transform.position - head.transform.position).normalized, Vector3.up) / 180.0f);
     }
-
 }
-
-
-
